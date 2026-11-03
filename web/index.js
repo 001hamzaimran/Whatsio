@@ -189,7 +189,10 @@ app.use("/*", shopify.ensureInstalledOnShop(), async (_req, res, _next) => {
           "<!-- VITE_REACT_REFRESH_PREAMBLE -->",
           process.env.NODE_ENV === "production" ? "" : REACT_REFRESH_PREAMBLE
         )
-        .replace("%VITE_SHOPIFY_API_KEY%", process.env.SHOPIFY_API_KEY || "")
+        .replace(
+          /<meta name="shopify-api-key"[^>]*>/i,
+          `<meta name="shopify-api-key" content="${process.env.SHOPIFY_API_KEY || ""}" />`
+        )
     );
 });
 

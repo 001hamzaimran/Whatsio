@@ -19,6 +19,26 @@ const MESSAGE_PRESETS = [
   { label: "📦 Track Shipping", text: "Hello! I would like an update on my shipment." },
 ];
 
+async function authFetch(url, options = {}) {
+  const headers = { ...options.headers };
+  if (!headers["Content-Type"] && options.method && options.method !== "GET") {
+    headers["Content-Type"] = "application/json";
+  }
+
+  try {
+    if (window.shopify?.idToken) {
+      const token = await window.shopify.idToken();
+      if (token) {
+        headers["Authorization"] = `Bearer ${token}`;
+      }
+    }
+  } catch (err) {
+    console.warn("Could not retrieve session token from App Bridge", err);
+  }
+
+  return fetch(url, { ...options, headers });
+}
+
 export default function HomePage() {
   const [settings, setSettings] = useState(EMPTY_SETTINGS);
   const [previewPhone, setPreviewPhone] = useState("");
@@ -40,7 +60,7 @@ export default function HomePage() {
 
   async function loadSettings() {
     try {
-      const response = await fetch("/api/settings");
+      const response = await authFetch("/api/settings");
       const data = await response.json();
 
       if (!response.ok) {
@@ -75,9 +95,8 @@ export default function HomePage() {
     };
 
     try {
-      const response = await fetch("/api/settings", {
+      const response = await authFetch("/api/settings", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload),
       });
       const data = await response.json();
