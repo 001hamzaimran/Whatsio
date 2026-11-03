@@ -202,8 +202,8 @@ export default function HomePage() {
                   <s-text-field
                     label="Default country calling code"
                     name="countryCode"
-                    value={previewCountryCode ? `+${previewCountryCode.replace(/\D/g, "")}` : "+92"}
-                    placeholder="+92"
+                    value={previewCountryCode ? `+${previewCountryCode.replace(/\D/g, "")}` : "+1"}
+                    placeholder="+1"
                     autocomplete="tel-country-code"
                     details="Used only when the WhatsApp number does not already include a country code."
                     onInput={(e) => {
@@ -218,7 +218,7 @@ export default function HomePage() {
                     label="WhatsApp phone number"
                     name="phone"
                     value={previewPhone}
-                    placeholder="03112895370 or +923112895370"
+                    placeholder="03*******70 or +13*******70"
                     autocomplete="tel"
                     details="Spaces, parentheses, and dashes are automatically cleaned."
                     onInput={(e) => {

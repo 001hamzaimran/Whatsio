@@ -104,7 +104,7 @@ app.post("/api/settings", async (req, res) => {
 
   if (!countryCode) {
     return res.status(422).send({
-      error: "Enter a valid country calling code, such as +92.",
+      error: "Enter a valid country calling code, such as +1.",
     });
   }
 
