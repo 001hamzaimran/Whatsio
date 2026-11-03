@@ -38,4 +38,19 @@ const shopify = shopifyApp({
   sessionStorage: new SQLiteSessionStorage(DB_PATH),
 });
 
+// Safely wrap webhook registration so a GraphQL 403 on webhook check does not crash the entire OAuth handshake
+const originalRegister = shopify.api.webhooks.register;
+if (typeof originalRegister === "function") {
+  shopify.api.webhooks.register = async function (...args) {
+    try {
+      return await originalRegister.apply(this, args);
+    } catch (err) {
+      shopify.config.logger.warning(
+        `Webhook auto-registration bypassed (${err.message}). Continuing OAuth callback.`
+      );
+      return {};
+    }
+  };
+}
+
 export default shopify;
