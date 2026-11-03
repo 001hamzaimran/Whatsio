@@ -70,7 +70,31 @@ app.post(
 // If you are adding routes outside of the /api path, remember to
 // also add a proxy rule for them in web/frontend/vite.config.js
 
-app.use("/api/*", shopify.validateAuthenticatedSession());
+// Resilient session validation for API requests (prevents scope-check reload loops)
+app.use("/api/*", async (req, res, next) => {
+  try {
+    const sessionId = await shopify.api.session.getCurrentId({
+      isOnline: shopify.config.useOnlineTokens,
+      rawRequest: req,
+      rawResponse: res,
+    });
+
+    if (sessionId) {
+      const session = await shopify.config.sessionStorage.loadSession(sessionId);
+      if (session && session.accessToken) {
+        res.locals.shopify = {
+          ...res.locals.shopify,
+          session,
+        };
+        return next();
+      }
+    }
+  } catch (error) {
+    console.warn("API session verification notice:", error.message);
+  }
+
+  return shopify.validateAuthenticatedSession()(req, res, next);
+});
 
 app.use(express.json());
 

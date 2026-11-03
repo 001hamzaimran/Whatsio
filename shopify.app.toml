@@ -1,7 +1,7 @@
 # Learn more about configuring your app at https://shopify.dev/docs/apps/tools/cli/configuration
 
-client_id = "ef22c9ce5e44618aed393cfc53397244"
-application_url = "https://example.com"
+client_id = "524a975776fdffa9512d9b5e8fb737ff"
+application_url = "https://whatsio-e5c2dc6a441d.herokuapp.com"
 embedded = true
 name = "Whatsio"
 
@@ -10,7 +10,7 @@ name = "Whatsio"
 scopes = "read_themes"
 
 [auth]
-redirect_urls = [ "https://example.com/api/auth" ]
+redirect_urls = [ "https://whatsio-e5c2dc6a441d.herokuapp.com/api/auth/callback" ]
 
 [webhooks]
 api_version = "2025-01"

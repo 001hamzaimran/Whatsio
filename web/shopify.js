@@ -18,7 +18,7 @@ const billingConfig = {
 
 const shopify = shopifyApp({
   api: {
-    apiVersion: LATEST_API_VERSION,
+    apiVersion: "2025-01",
     restResources,
     future: {
       customerAddressDefaultFix: true,
