@@ -4,7 +4,7 @@ import { SQLiteSessionStorage } from "@shopify/shopify-app-session-storage-sqlit
 import { restResources } from "@shopify/shopify-api/rest/admin/2024-10";
 
 const DB_PATH = `${process.cwd()}/database.sqlite`;
-const REQUIRED_SCOPES = (process.env.SCOPES || "read_themes")
+const REQUIRED_SCOPES = (process.env.SCOPES || "")
   .split(",")
   .map((scope) => scope.trim())
   .filter(Boolean);
@@ -22,7 +22,7 @@ const billingConfig = {
 
 const shopify = shopifyApp({
   api: {
-    apiVersion: "2026-01",
+    apiVersion: "2027-01",
     scopes: REQUIRED_SCOPES,
     restResources,
     future: {

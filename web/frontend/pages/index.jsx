@@ -238,25 +238,26 @@ export default function HomePage() {
         <div style={{ marginBottom: 20 }}>
           <s-banner heading="Action Required" tone="critical" dismissible>
             <p>{error}</p>
-            {error.toLowerCase().includes("reauthoriz") && (
-              <p style={{ marginTop: 8 }}>
-                <a
-                  href={`/api/auth?shop=${
-                    new URLSearchParams(window.location.search).get("shop") ||
-                    settings.shop ||
-                    ""
-                  }`}
-                  target="_top"
-                  style={{
-                    color: "#2c6ecb",
-                    fontWeight: 600,
-                    textDecoration: "underline",
-                  }}
-                >
-                  Click here to grant permissions and re-authorize Whatsio →
-                </a>
-              </p>
-            )}
+            <p style={{ marginTop: 8 }}>
+              <a
+                href={`/api/auth?shop=${
+                  new URLSearchParams(window.location.search).get("shop") ||
+                  settings.shop ||
+                  ""
+                }`}
+                target="_top"
+                onClick={() => {
+                  window.sessionStorage.removeItem(REAUTH_GUARD_KEY);
+                }}
+                style={{
+                  color: "#2c6ecb",
+                  fontWeight: 600,
+                  textDecoration: "underline",
+                }}
+              >
+                Click here to re-authorize Whatsio →
+              </a>
+            </p>
           </s-banner>
         </div>
       )}

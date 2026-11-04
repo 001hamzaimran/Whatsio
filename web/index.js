@@ -99,6 +99,12 @@ app.use(express.json());
 
 async function handleShopifyApiError(error, _req, res, actionName) {
   console.error(`Failed to ${actionName}:`, error);
+  if (error?.response?.body) {
+    console.error(
+      "[Shopify Error Body]:",
+      JSON.stringify(error.response.body, null, 2)
+    );
+  }
 
   const statusCode =
     error?.response?.code ||
@@ -113,14 +119,37 @@ async function handleShopifyApiError(error, _req, res, actionName) {
       : null);
 
   if (statusCode === 401 || statusCode === 403) {
-    const shop = res.locals?.shopify?.session?.shop;
+    const session = res.locals?.shopify?.session;
+    const shop = session?.shop || _req.query.shop;
+
+    if (session?.id) {
+      console.warn(
+        `[Whatsio] Purging stale session ${session.id} for shop ${shop}`
+      );
+      try {
+        await shopify.config.sessionStorage.deleteSession(session.id);
+      } catch (err) {
+        console.warn("Failed to delete stale session:", err.message);
+      }
+    }
+
     const reauthorizeUrl = shop
       ? `${shopify.config.auth.path}?shop=${encodeURIComponent(shop)}`
       : undefined;
 
-    return res.status(statusCode).json({
+    res.status(statusCode);
+    res.append("Access-Control-Expose-Headers", [
+      "X-Shopify-Api-Request-Failure-Reauthorize",
+      "X-Shopify-Api-Request-Failure-Reauthorize-Url",
+    ]);
+    res.set("X-Shopify-API-Request-Failure-Reauthorize", "1");
+    if (reauthorizeUrl) {
+      res.set("X-Shopify-API-Request-Failure-Reauthorize-Url", reauthorizeUrl);
+    }
+
+    return res.json({
       error:
-        "Shopify rejected the Admin API token. Check the deployed app credentials and scopes; repeating authorization will not fix a configuration mismatch.",
+        "Shopify authentication expired or token was rejected. Please re-authorize the app.",
       reauthorizeUrl,
     });
   }
