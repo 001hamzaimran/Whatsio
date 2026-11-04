@@ -8,24 +8,35 @@ export default function ExitIframe() {
   const { search } = useLocation();
   const [showWarning, setShowWarning] = useState(false);
 
-  app.loading(true);
+  try {
+    if (app?.loading) {
+      app.loading(true);
+    } else if (window.shopify?.loading) {
+      window.shopify.loading(true);
+    }
+  } catch (_) {}
 
   useEffect(() => {
-    if (!!app && !!search) {
+    if (!!search) {
       const params = new URLSearchParams(search);
       const redirectUri = params.get("redirectUri");
-      const url = new URL(decodeURIComponent(redirectUri));
+      if (!redirectUri) return;
 
-      if (
-        [location.hostname, "admin.shopify.com"].includes(url.hostname) ||
-        url.hostname.endsWith(".myshopify.com")
-      ) {
-        window.open(url, "_top");
-      } else {
+      try {
+        const url = new URL(decodeURIComponent(redirectUri));
+        if (
+          [location.hostname, "admin.shopify.com"].includes(url.hostname) ||
+          url.hostname.endsWith(".myshopify.com")
+        ) {
+          window.open(url.toString(), "_top");
+        } else {
+          setShowWarning(true);
+        }
+      } catch (_) {
         setShowWarning(true);
       }
     }
-  }, [app, search, setShowWarning]);
+  }, [search, setShowWarning]);
 
   return showWarning ? (
     <Page narrowWidth>

@@ -1,9 +1,34 @@
 import { DeliveryMethod } from "@shopify/shopify-api";
+import shopify from "./shopify.js";
 
 /**
  * @type {{[key: string]: import("@shopify/shopify-api").WebhookHandler}}
  */
 export default {
+  /**
+   * Called immediately when an app is uninstalled from a shop.
+   * Purges the offline session so reinstalls must undergo OAuth.
+   */
+  APP_UNINSTALLED: {
+    deliveryMethod: DeliveryMethod.Http,
+    callbackUrl: "/api/webhooks",
+    callback: async (topic, shop, body, webhookId) => {
+      console.log(`[Webhook] App uninstalled for ${shop}`);
+      try {
+        const sessionId = shopify.api.session.getOfflineId(shop);
+        await shopify.config.sessionStorage.deleteSession(sessionId);
+        console.log(
+          `[Webhook] Deleted offline session ${sessionId} for ${shop}`
+        );
+      } catch (err) {
+        console.error(
+          `[Webhook] Failed to delete session on app/uninstalled:`,
+          err
+        );
+      }
+    },
+  },
+
   /**
    * Customers can request their data from a store owner. When this happens,
    * Shopify invokes this privacy webhook.

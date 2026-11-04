@@ -32,13 +32,40 @@ const MESSAGE_PRESETS = [
 ];
 
 const REAUTH_GUARD_KEY = "whatsio:last-reauthorization";
+const memoryStore = new Map();
+
+const safeStorage = {
+  getItem(key) {
+    try {
+      return window.sessionStorage?.getItem(key) ?? memoryStore.get(key) ?? null;
+    } catch {
+      return memoryStore.get(key) ?? null;
+    }
+  },
+  setItem(key, value) {
+    try {
+      window.sessionStorage?.setItem(key, value);
+    } catch {
+      // In-memory fallback
+    }
+    memoryStore.set(key, value);
+  },
+  removeItem(key) {
+    try {
+      window.sessionStorage?.removeItem(key);
+    } catch {
+      // In-memory fallback
+    }
+    memoryStore.delete(key);
+  },
+};
 
 function redirectForReauthorization(url) {
-  if (window.sessionStorage.getItem(REAUTH_GUARD_KEY)) {
+  if (safeStorage.getItem(REAUTH_GUARD_KEY)) {
     return false;
   }
 
-  window.sessionStorage.setItem(REAUTH_GUARD_KEY, "1");
+  safeStorage.setItem(REAUTH_GUARD_KEY, "1");
   window.top?.location.replace(url);
   return true;
 }
@@ -63,7 +90,7 @@ async function authFetch(url, options = {}) {
   const response = await fetch(url, { ...options, headers });
 
   if (response.ok) {
-    window.sessionStorage.removeItem(REAUTH_GUARD_KEY);
+    safeStorage.removeItem(REAUTH_GUARD_KEY);
   }
 
   if (response.status === 403 || response.status === 401) {
@@ -179,15 +206,18 @@ export default function HomePage() {
     }
   }
 
-  // Retained for future re-activation when ready
   function openThemeEditor() {
-    const apiKey = document
-      .querySelector('meta[name="shopify-api-key"]')
-      ?.getAttribute("content");
-    if (!settings.shop || !apiKey) return;
+    const apiKey =
+      document
+        .querySelector('meta[name="shopify-api-key"]')
+        ?.getAttribute("content") || "524a975776fdffa9512d9b5e8fb737ff";
+    const shop =
+      settings.shop ||
+      new URLSearchParams(window.location.search).get("shop");
+    if (!shop) return;
 
     const editorUrl = new URL(
-      `https://${settings.shop}/admin/themes/current/editor`
+      `https://${shop}/admin/themes/current/editor`
     );
     editorUrl.searchParams.set("context", "apps");
     editorUrl.searchParams.set("activateAppId", `${apiKey}/whatsapp-chat`);
@@ -247,7 +277,7 @@ export default function HomePage() {
                 }`}
                 target="_top"
                 onClick={() => {
-                  window.sessionStorage.removeItem(REAUTH_GUARD_KEY);
+                  safeStorage.removeItem(REAUTH_GUARD_KEY);
                 }}
                 style={{
                   color: "#2c6ecb",
@@ -556,22 +586,20 @@ export default function HomePage() {
                 </span>
               </div>
 
-              {/* 
-                THEME EDITOR DIRECT BUTTON (Commented out per user request - use step-by-step instructions above):
-                
-                <div style={{ marginTop: 16 }}>
-                  <s-button
-                    variant="secondary"
-                    onClick={openThemeEditor}
-                    disabled={loading || !settings.shop}
-                  >
-                    Open theme editor
-                  </s-button>
-                </div>
-              */}
-              <div className="whatsio-commented-code-notice">
-                💡 Direct theme customizer button is paused. Follow the 5 quick
-                steps above to activate.
+              <div style={{ marginTop: 20 }}>
+                <s-button
+                  variant="primary"
+                  onClick={openThemeEditor}
+                  disabled={
+                    loading ||
+                    !(
+                      settings.shop ||
+                      new URLSearchParams(window.location.search).get("shop")
+                    )
+                  }
+                >
+                  Open Theme Editor & Enable WhatsApp Button
+                </s-button>
               </div>
             </div>
           </div>
