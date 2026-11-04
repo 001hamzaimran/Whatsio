@@ -87,10 +87,19 @@ async function authFetch(url, options = {}) {
     console.warn("Could not retrieve session token from App Bridge", err);
   }
 
-  const response = await fetch(url, { ...options, headers });
+  const { _retried, ...fetchOptions } = options;
+  const response = await fetch(url, { ...fetchOptions, headers });
 
   if (response.ok) {
     safeStorage.removeItem(REAUTH_GUARD_KEY);
+  }
+
+  if (
+    response.status === 401 &&
+    !_retried &&
+    response.headers.get("X-Shopify-Retry-Invalid-Session-Request") === "1"
+  ) {
+    return authFetch(url, { ...fetchOptions, _retried: true });
   }
 
   if (response.status === 403 || response.status === 401) {

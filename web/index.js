@@ -2,7 +2,6 @@
 import { join } from "path";
 import { readFileSync } from "fs";
 import express from "express";
-import serveStatic from "serve-static";
 
 import shopify from "./shopify.js";
 import { normalizeCountryCode, normalizePhone } from "./phone.js";
@@ -79,37 +78,36 @@ app.post(
 // If you are adding routes outside of the /api path, remember to
 // also add a proxy rule for them in web/frontend/vite.config.js
 
-// Resilient session validation for API requests (prevents scope-check reload loops)
-app.use("/api/*", async (req, res, next) => {
+// Purge any legacy non-expiring offline session before token exchange runs
+app.use("/api", async (req, _res, next) => {
   try {
-    const sessionId = await shopify.api.session.getCurrentId({
-      isOnline: shopify.config.useOnlineTokens,
-      rawRequest: req,
-      rawResponse: res,
-    });
-
-    if (sessionId) {
-      const session = await shopify.config.sessionStorage.loadSession(
-        sessionId
+    const authHeader = req.headers.authorization;
+    const match = authHeader?.match(/^Bearer\s+(.+)$/i);
+    if (match && shopify.config.future?.expiringOfflineAccessTokens) {
+      const payload = await shopify.api.session.decodeSessionToken(match[1]);
+      const shop = new URL(payload.dest).hostname;
+      const offlineId = shopify.api.session.getOfflineId(shop);
+      const existing = await shopify.config.sessionStorage.loadSession(
+        offlineId
       );
-      if (session && session.accessToken) {
-        res.locals.shopify = {
-          ...res.locals.shopify,
-          session,
-        };
-        return next();
+      if (existing && !existing.isOnline && !existing.expires) {
+        console.warn(
+          `[Whatsio] Purging legacy non-expiring session ${offlineId} so token exchange mints an expiring token.`
+        );
+        await shopify.config.sessionStorage.deleteSession(offlineId);
       }
     }
-  } catch (error) {
-    console.warn("API session verification notice:", error.message);
+  } catch (_err) {
+    // Let validateAuthenticatedSession handle invalid or expired session tokens
   }
-
-  return shopify.validateAuthenticatedSession()(req, res, next);
+  return next();
 });
+
+app.use("/api", shopify.validateAuthenticatedSession());
 
 app.use(express.json());
 
-async function handleShopifyApiError(error, _req, res, actionName) {
+async function handleShopifyApiError(error, req, res, actionName) {
   console.error(`Failed to ${actionName}:`, error);
   if (error?.response?.body) {
     console.error(
@@ -130,39 +128,37 @@ async function handleShopifyApiError(error, _req, res, actionName) {
       ? 401
       : null);
 
-  if (statusCode === 401 || statusCode === 403) {
-    const session = res.locals?.shopify?.session;
-    const shop = session?.shop || _req.query.shop;
+  const session = res.locals?.shopify?.session;
+  const shop = session?.shop || req.query.shop;
 
+  if (
+    statusCode === 401 ||
+    (statusCode === 403 && session && !session.expires)
+  ) {
     if (session?.id) {
       console.warn(
-        `[Whatsio] Purging stale session ${session.id} for shop ${shop}`
+        `[Whatsio] Invalidating session ${session.id} for shop ${shop} (status ${statusCode})`
       );
       try {
         await shopify.config.sessionStorage.deleteSession(session.id);
       } catch (err) {
-        console.warn("Failed to delete stale session:", err.message);
+        console.warn("Failed to delete invalidated session:", err.message);
       }
     }
 
-    const reauthorizeUrl = shop
-      ? `${shopify.config.auth.path}?shop=${encodeURIComponent(shop)}`
-      : undefined;
-
-    res.status(statusCode);
     res.append("Access-Control-Expose-Headers", [
-      "X-Shopify-Api-Request-Failure-Reauthorize",
-      "X-Shopify-Api-Request-Failure-Reauthorize-Url",
+      "X-Shopify-Retry-Invalid-Session-Request",
     ]);
-    res.set("X-Shopify-API-Request-Failure-Reauthorize", "1");
-    if (reauthorizeUrl) {
-      res.set("X-Shopify-API-Request-Failure-Reauthorize-Url", reauthorizeUrl);
-    }
+    res.set("X-Shopify-Retry-Invalid-Session-Request", "1");
+    return res.status(401).json({
+      error: "Shopify session expired. Refreshing authentication...",
+    });
+  }
 
-    return res.json({
+  if (statusCode === 403) {
+    return res.status(403).json({
       error:
-        "Shopify authentication expired or token was rejected. Please re-authorize the app.",
-      reauthorizeUrl,
+        "Shopify denied access to app settings (403 Forbidden). Please reload the app from your Shopify Admin.",
     });
   }
 
@@ -201,10 +197,11 @@ app.post("/api/settings", async (req, res) => {
     return res.status(401).json({ error: "No active session found." });
   }
 
-  const countryCode = normalizeCountryCode(req.body.countryCode);
-  const phone = normalizePhone(req.body.phone, countryCode);
-  const message = String(req.body.message || "").trim();
-  const position = req.body.position === "left" ? "left" : "right";
+  const body = req.body ?? {};
+  const countryCode = normalizeCountryCode(body.countryCode);
+  const phone = normalizePhone(body.phone, countryCode);
+  const message = String(body.message || "").trim();
+  const position = body.position === "left" ? "left" : "right";
 
   if (!countryCode) {
     return res.status(422).send({
@@ -284,9 +281,9 @@ app.post("/api/settings", async (req, res) => {
 });
 
 app.use(shopify.cspHeaders());
-app.use(serveStatic(STATIC_PATH, { index: false }));
+app.use(express.static(STATIC_PATH, { index: false }));
 
-app.use("/*", shopify.ensureInstalledOnShop(), async (_req, res, _next) => {
+app.use(shopify.ensureInstalledOnShop(), async (_req, res) => {
   return res
     .status(200)
     .set("Content-Type", "text/html")
