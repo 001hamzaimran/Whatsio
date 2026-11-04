@@ -9,7 +9,7 @@ const REQUIRED_SCOPES = (process.env.SCOPES || "")
 
 const shopify = shopifyApp({
   api: {
-    apiVersion: "2027-01",
+    apiVersion: "2026-10",
     scopes: REQUIRED_SCOPES,
     future: {
       customerAddressDefaultFix: true,

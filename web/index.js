@@ -286,39 +286,7 @@ app.post("/api/settings", async (req, res) => {
 app.use(shopify.cspHeaders());
 app.use(serveStatic(STATIC_PATH, { index: false }));
 
-// Immediately verify token validity on top-level loads so reinstalls trigger OAuth before UI (Requirement 2.3.4)
-app.use("/*", async (req, res, next) => {
-  const shopParam = req.query.shop;
-  if (shopParam && typeof shopParam === "string") {
-    const cleanShop = shopify.api.utils.sanitizeShop(shopParam);
-    if (cleanShop) {
-      const sessionId = shopify.api.session.getOfflineId(cleanShop);
-      try {
-        const session = await shopify.config.sessionStorage.loadSession(sessionId);
-        if (session && session.accessToken) {
-          const client = new shopify.api.clients.Graphql({ session });
-          await client.request(SETTINGS_QUERY);
-        }
-      } catch (err) {
-        const status = err?.response?.code || err?.networkStatusCode;
-        if (
-          status === 401 ||
-          status === 403 ||
-          err?.message?.includes("Forbidden") ||
-          err?.message?.includes("Unauthorized")
-        ) {
-          console.warn(
-            `[Reinstall Check] Stale or revoked token detected for ${cleanShop}. Purging session before loading app.`
-          );
-          try {
-            await shopify.config.sessionStorage.deleteSession(sessionId);
-          } catch (_) {}
-        }
-      }
-    }
-  }
-  return next();
-}, shopify.ensureInstalledOnShop(), async (_req, res, _next) => {
+app.use("/*", shopify.ensureInstalledOnShop(), async (_req, res, _next) => {
   return res
     .status(200)
     .set("Content-Type", "text/html")
