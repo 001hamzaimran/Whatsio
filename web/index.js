@@ -22,9 +22,6 @@ const SETTINGS_QUERY = `
       message: metafield(namespace: "whatsio", key: "message") { value }
       position: metafield(namespace: "whatsio", key: "position") { value }
     }
-    shop {
-      myshopifyDomain
-    }
   }
 `;
 
@@ -98,29 +95,78 @@ app.use("/api/*", async (req, res, next) => {
 
 app.use(express.json());
 
-app.get("/api/settings", async (_req, res) => {
+async function handleShopifyApiError(error, req, res, actionName) {
+  console.error(`Failed to ${actionName}:`, error);
+
+  const statusCode =
+    error?.response?.code ||
+    error?.networkStatusCode ||
+    (typeof error?.message === "string" && (error.message.includes("403") || error.message.includes("Forbidden")) ? 403 : null) ||
+    (typeof error?.message === "string" && (error.message.includes("401") || error.message.includes("Unauthorized")) ? 401 : null);
+
+  const session = res.locals?.shopify?.session;
+
+  if ((statusCode === 401 || statusCode === 403) && session) {
+    console.warn(
+      `[Whatsio] Stale or unauthorized session detected for ${session.shop}. Deleting session and requesting re-authorization.`
+    );
+    try {
+      if (session.id) {
+        await shopify.config.sessionStorage.deleteSession(session.id);
+      }
+    } catch (storageError) {
+      console.warn("Could not delete stale session from storage:", storageError.message);
+    }
+
+    const redirectUri = `${shopify.config.auth.path}?shop=${encodeURIComponent(session.shop)}`;
+    res.status(403);
+    res.append("Access-Control-Expose-Headers", [
+      "X-Shopify-Api-Request-Failure-Reauthorize",
+      "X-Shopify-Api-Request-Failure-Reauthorize-Url",
+    ]);
+    res.set("X-Shopify-API-Request-Failure-Reauthorize", "1");
+    res.set("X-Shopify-API-Request-Failure-Reauthorize-Url", redirectUri);
+    return res.json({
+      error: "Session expired or permissions changed. Reauthorization required.",
+      reauthorizeUrl: redirectUri,
+    });
+  }
+
+  return res.status(500).json({ error: `Could not ${actionName}.` });
+}
+
+app.get("/api/settings", async (req, res) => {
+  const session = res.locals?.shopify?.session;
+  if (!session) {
+    return res.status(401).json({ error: "No active session found." });
+  }
+
   const client = new shopify.api.clients.Graphql({
-    session: res.locals.shopify.session,
+    session,
   });
 
   try {
     const response = await client.request(SETTINGS_QUERY);
-    const installation = response.data.currentAppInstallation;
+    const installation = response?.data?.currentAppInstallation;
 
     res.status(200).send({
-      phone: installation.phone?.value || "",
-      countryCode: installation.countryCode?.value || "92",
-      message: installation.message?.value || DEFAULT_MESSAGE,
-      position: installation.position?.value || "right",
-      shop: response.data.shop.myshopifyDomain,
+      phone: installation?.phone?.value || "",
+      countryCode: installation?.countryCode?.value || "92",
+      message: installation?.message?.value || DEFAULT_MESSAGE,
+      position: installation?.position?.value || "right",
+      shop: session.shop,
     });
   } catch (error) {
-    console.error("Failed to load Whatsio settings", error);
-    res.status(500).send({ error: "Could not load your settings." });
+    return handleShopifyApiError(error, req, res, "load Whatsio settings");
   }
 });
 
 app.post("/api/settings", async (req, res) => {
+  const session = res.locals?.shopify?.session;
+  if (!session) {
+    return res.status(401).json({ error: "No active session found." });
+  }
+
   const countryCode = normalizeCountryCode(req.body.countryCode);
   const phone = normalizePhone(req.body.phone, countryCode);
   const message = String(req.body.message || "").trim();
@@ -146,12 +192,15 @@ app.post("/api/settings", async (req, res) => {
   }
 
   const client = new shopify.api.clients.Graphql({
-    session: res.locals.shopify.session,
+    session,
   });
 
   try {
     const settingsResponse = await client.request(SETTINGS_QUERY);
-    const ownerId = settingsResponse.data.currentAppInstallation.id;
+    const ownerId = settingsResponse?.data?.currentAppInstallation?.id;
+    if (!ownerId) {
+      throw new Error("Unable to retrieve app installation ID.");
+    }
     const response = await client.request(SAVE_SETTINGS_MUTATION, {
       variables: {
         metafields: [
@@ -186,16 +235,15 @@ app.post("/api/settings", async (req, res) => {
         ],
       },
     });
-    const userErrors = response.data.metafieldsSet.userErrors;
+    const userErrors = response.data?.metafieldsSet?.userErrors || [];
 
     if (userErrors.length > 0) {
       return res.status(422).send({ error: userErrors[0].message });
     }
 
-    return res.status(200).send({ phone, countryCode, message, position });
+    return res.status(200).send({ phone, countryCode, message, position, shop: session.shop });
   } catch (error) {
-    console.error("Failed to save Whatsio settings", error);
-    return res.status(500).send({ error: "Could not save your settings." });
+    return handleShopifyApiError(error, req, res, "save Whatsio settings");
   }
 });
 

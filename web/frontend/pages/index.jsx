@@ -36,7 +36,38 @@ async function authFetch(url, options = {}) {
     console.warn("Could not retrieve session token from App Bridge", err);
   }
 
-  return fetch(url, { ...options, headers });
+  const response = await fetch(url, { ...options, headers });
+
+  if (response.status === 403 || response.status === 401) {
+    const reauthUrl =
+      response.headers.get("X-Shopify-Api-Request-Failure-Reauthorize-Url") ||
+      response.headers.get("x-shopify-api-request-failure-reauthorize-url");
+
+    if (reauthUrl) {
+      if (window.top) {
+        window.top.location.href = reauthUrl;
+      } else {
+        window.location.href = reauthUrl;
+      }
+      return response;
+    }
+
+    try {
+      const cloned = response.clone();
+      const body = await cloned.json();
+      if (body?.reauthorizeUrl) {
+        if (window.top) {
+          window.top.location.href = body.reauthorizeUrl;
+        } else {
+          window.location.href = body.reauthorizeUrl;
+        }
+      }
+    } catch (_) {
+      // Body is not json
+    }
+  }
+
+  return response;
 }
 
 export default function HomePage() {
@@ -182,8 +213,19 @@ export default function HomePage() {
 
       {error && (
         <div style={{ marginBottom: 20 }}>
-          <s-banner heading="Something went wrong" tone="critical" dismissible>
-            {error}
+          <s-banner heading="Action Required" tone="critical" dismissible>
+            <p>{error}</p>
+            {error.toLowerCase().includes("reauthoriz") && (
+              <p style={{ marginTop: 8 }}>
+                <a
+                  href={`/api/auth?shop=${new URLSearchParams(window.location.search).get("shop") || settings.shop || ""}`}
+                  target="_top"
+                  style={{ color: "#2c6ecb", fontWeight: 600, textDecoration: "underline" }}
+                >
+                  Click here to grant permissions and re-authorize Whatsio →
+                </a>
+              </p>
+            )}
           </s-banner>
         </div>
       )}

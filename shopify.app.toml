@@ -13,7 +13,7 @@ scopes = "read_themes"
 redirect_urls = [ "https://whatsio-e5c2dc6a441d.herokuapp.com/api/auth/callback" ]
 
 [webhooks]
-api_version = "2025-01"
+api_version = "2026-01"
 
 [build]
 automatically_update_urls_on_dev = true
