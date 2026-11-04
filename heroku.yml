@@ -3,4 +3,4 @@ build:
     web: Dockerfile
   config:
     SHOPIFY_API_KEY: 524a975776fdffa9512d9b5e8fb737ff
-    SCOPES: 
+    SCOPES: read_themes

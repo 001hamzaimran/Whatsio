@@ -77,7 +77,9 @@ app.use("/api/*", async (req, res, next) => {
     });
 
     if (sessionId) {
-      const session = await shopify.config.sessionStorage.loadSession(sessionId);
+      const session = await shopify.config.sessionStorage.loadSession(
+        sessionId
+      );
       if (session && session.accessToken) {
         res.locals.shopify = {
           ...res.locals.shopify,
@@ -95,40 +97,31 @@ app.use("/api/*", async (req, res, next) => {
 
 app.use(express.json());
 
-async function handleShopifyApiError(error, req, res, actionName) {
+async function handleShopifyApiError(error, _req, res, actionName) {
   console.error(`Failed to ${actionName}:`, error);
 
   const statusCode =
     error?.response?.code ||
     error?.networkStatusCode ||
-    (typeof error?.message === "string" && (error.message.includes("403") || error.message.includes("Forbidden")) ? 403 : null) ||
-    (typeof error?.message === "string" && (error.message.includes("401") || error.message.includes("Unauthorized")) ? 401 : null);
+    (typeof error?.message === "string" &&
+    (error.message.includes("403") || error.message.includes("Forbidden"))
+      ? 403
+      : null) ||
+    (typeof error?.message === "string" &&
+    (error.message.includes("401") || error.message.includes("Unauthorized"))
+      ? 401
+      : null);
 
-  const session = res.locals?.shopify?.session;
+  if (statusCode === 401 || statusCode === 403) {
+    const shop = res.locals?.shopify?.session?.shop;
+    const reauthorizeUrl = shop
+      ? `${shopify.config.auth.path}?shop=${encodeURIComponent(shop)}`
+      : undefined;
 
-  if ((statusCode === 401 || statusCode === 403) && session) {
-    console.warn(
-      `[Whatsio] Stale or unauthorized session detected for ${session.shop}. Deleting session and requesting re-authorization.`
-    );
-    try {
-      if (session.id) {
-        await shopify.config.sessionStorage.deleteSession(session.id);
-      }
-    } catch (storageError) {
-      console.warn("Could not delete stale session from storage:", storageError.message);
-    }
-
-    const redirectUri = `${shopify.config.auth.path}?shop=${encodeURIComponent(session.shop)}`;
-    res.status(403);
-    res.append("Access-Control-Expose-Headers", [
-      "X-Shopify-Api-Request-Failure-Reauthorize",
-      "X-Shopify-Api-Request-Failure-Reauthorize-Url",
-    ]);
-    res.set("X-Shopify-API-Request-Failure-Reauthorize", "1");
-    res.set("X-Shopify-API-Request-Failure-Reauthorize-Url", redirectUri);
-    return res.json({
-      error: "Session expired or permissions changed. Reauthorization required.",
-      reauthorizeUrl: redirectUri,
+    return res.status(statusCode).json({
+      error:
+        "Shopify rejected the Admin API token. Check the deployed app credentials and scopes; repeating authorization will not fix a configuration mismatch.",
+      reauthorizeUrl,
     });
   }
 
@@ -241,7 +234,9 @@ app.post("/api/settings", async (req, res) => {
       return res.status(422).send({ error: userErrors[0].message });
     }
 
-    return res.status(200).send({ phone, countryCode, message, position, shop: session.shop });
+    return res
+      .status(200)
+      .send({ phone, countryCode, message, position, shop: session.shop });
   } catch (error) {
     return handleShopifyApiError(error, req, res, "save Whatsio settings");
   }
@@ -263,7 +258,9 @@ app.use("/*", shopify.ensureInstalledOnShop(), async (_req, res, _next) => {
         )
         .replace(
           /<meta name="shopify-api-key"[^>]*>/i,
-          `<meta name="shopify-api-key" content="${process.env.SHOPIFY_API_KEY || ""}" />`
+          `<meta name="shopify-api-key" content="${
+            process.env.SHOPIFY_API_KEY || ""
+          }" />`
         )
     );
 });

@@ -13,11 +13,35 @@ const EMPTY_SETTINGS = {
 };
 
 const MESSAGE_PRESETS = [
-  { label: "👋 Product Inquiry", text: "Hi! I have a question about your products." },
-  { label: "💬 Order Support", text: "Hello! I need help with an order I placed." },
-  { label: "🏷️ Discount Inquiry", text: "Hi! Are there any special discount offers available today?" },
-  { label: "📦 Track Shipping", text: "Hello! I would like an update on my shipment." },
+  {
+    label: "👋 Product Inquiry",
+    text: "Hi! I have a question about your products.",
+  },
+  {
+    label: "💬 Order Support",
+    text: "Hello! I need help with an order I placed.",
+  },
+  {
+    label: "🏷️ Discount Inquiry",
+    text: "Hi! Are there any special discount offers available today?",
+  },
+  {
+    label: "📦 Track Shipping",
+    text: "Hello! I would like an update on my shipment.",
+  },
 ];
+
+const REAUTH_GUARD_KEY = "whatsio:last-reauthorization";
+
+function redirectForReauthorization(url) {
+  if (window.sessionStorage.getItem(REAUTH_GUARD_KEY)) {
+    return false;
+  }
+
+  window.sessionStorage.setItem(REAUTH_GUARD_KEY, "1");
+  window.top?.location.replace(url);
+  return true;
+}
 
 async function authFetch(url, options = {}) {
   const headers = { ...options.headers };
@@ -38,17 +62,17 @@ async function authFetch(url, options = {}) {
 
   const response = await fetch(url, { ...options, headers });
 
+  if (response.ok) {
+    window.sessionStorage.removeItem(REAUTH_GUARD_KEY);
+  }
+
   if (response.status === 403 || response.status === 401) {
     const reauthUrl =
       response.headers.get("X-Shopify-Api-Request-Failure-Reauthorize-Url") ||
       response.headers.get("x-shopify-api-request-failure-reauthorize-url");
 
     if (reauthUrl) {
-      if (window.top) {
-        window.top.location.href = reauthUrl;
-      } else {
-        window.location.href = reauthUrl;
-      }
+      redirectForReauthorization(reauthUrl);
       return response;
     }
 
@@ -56,11 +80,7 @@ async function authFetch(url, options = {}) {
       const cloned = response.clone();
       const body = await cloned.json();
       if (body?.reauthorizeUrl) {
-        if (window.top) {
-          window.top.location.href = body.reauthorizeUrl;
-        } else {
-          window.location.href = body.reauthorizeUrl;
-        }
+        redirectForReauthorization(body.reauthorizeUrl);
       }
     } catch (_) {
       // Body is not json
@@ -181,7 +201,9 @@ export default function HomePage() {
       : `${previewCountryCode}${cleanPhone.replace(/^0+/, "")}`
     : "";
   const waUrlPreview = formattedPhone
-    ? `https://wa.me/${formattedPhone}?text=${encodeURIComponent(previewMessage)}`
+    ? `https://wa.me/${formattedPhone}?text=${encodeURIComponent(
+        previewMessage
+      )}`
     : `https://wa.me/<your-phone>?text=${encodeURIComponent(previewMessage)}`;
 
   const isConfigured = Boolean(previewPhone.trim());
@@ -199,7 +221,8 @@ export default function HomePage() {
           <div>
             <h1 className="whatsio-hero-title">Whatsio WhatsApp Chat</h1>
             <p className="whatsio-hero-desc">
-              Connect with your store visitors and turn conversations into sales with a zero-delay WhatsApp floating button.
+              Connect with your store visitors and turn conversations into sales
+              with a zero-delay WhatsApp floating button.
             </p>
           </div>
         </div>
@@ -218,9 +241,17 @@ export default function HomePage() {
             {error.toLowerCase().includes("reauthoriz") && (
               <p style={{ marginTop: 8 }}>
                 <a
-                  href={`/api/auth?shop=${new URLSearchParams(window.location.search).get("shop") || settings.shop || ""}`}
+                  href={`/api/auth?shop=${
+                    new URLSearchParams(window.location.search).get("shop") ||
+                    settings.shop ||
+                    ""
+                  }`}
                   target="_top"
-                  style={{ color: "#2c6ecb", fontWeight: 600, textDecoration: "underline" }}
+                  style={{
+                    color: "#2c6ecb",
+                    fontWeight: 600,
+                    textDecoration: "underline",
+                  }}
                 >
                   Click here to grant permissions and re-authorize Whatsio →
                 </a>
@@ -232,7 +263,10 @@ export default function HomePage() {
 
       {loading ? (
         <div style={{ textAlign: "center", padding: "60px 0" }}>
-          <s-spinner accessibilityLabel="Loading WhatsApp settings" size="large" />
+          <s-spinner
+            accessibilityLabel="Loading WhatsApp settings"
+            size="large"
+          />
           <p style={{ marginTop: 12, color: "#6d7175", fontSize: 14 }}>
             Loading your WhatsApp settings...
           </p>
@@ -245,14 +279,22 @@ export default function HomePage() {
               <div className="whatsio-card-header">
                 <div>
                   <h2 className="whatsio-card-title">
-                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                    <svg
+                      width="18"
+                      height="18"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth="2"
+                    >
                       <path d="M12 20h9" />
                       <path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z" />
                     </svg>
                     Button & Chat Configuration
                   </h2>
                   <p className="whatsio-card-subtitle">
-                    Customize your contact number, prewritten greetings, and storefront position.
+                    Customize your contact number, prewritten greetings, and
+                    storefront position.
                   </p>
                 </div>
               </div>
@@ -263,7 +305,11 @@ export default function HomePage() {
                   <s-text-field
                     label="Default country calling code"
                     name="countryCode"
-                    value={previewCountryCode ? `+${previewCountryCode.replace(/\D/g, "")}` : "+1"}
+                    value={
+                      previewCountryCode
+                        ? `+${previewCountryCode.replace(/\D/g, "")}`
+                        : "+1"
+                    }
                     placeholder="+1"
                     autocomplete="tel-country-code"
                     details="Used only when the WhatsApp number does not already include a country code."
@@ -290,10 +336,24 @@ export default function HomePage() {
 
                   {/* Prewritten message presets & textarea */}
                   <div>
-                    <label style={{ fontSize: 13, fontWeight: 600, color: "#202223", display: "block", marginBottom: 4 }}>
+                    <label
+                      style={{
+                        fontSize: 13,
+                        fontWeight: 600,
+                        color: "#202223",
+                        display: "block",
+                        marginBottom: 4,
+                      }}
+                    >
                       Prewritten greeting message
                     </label>
-                    <p style={{ fontSize: 12, color: "#6d7175", margin: "0 0 8px 0" }}>
+                    <p
+                      style={{
+                        fontSize: 12,
+                        color: "#6d7175",
+                        margin: "0 0 8px 0",
+                      }}
+                    >
                       Choose a quick preset or type your custom message:
                     </p>
                     <div className="whatsio-presets">
@@ -325,12 +385,22 @@ export default function HomePage() {
 
                   {/* Button position with visual selector */}
                   <div>
-                    <label style={{ fontSize: 13, fontWeight: 600, color: "#202223", display: "block", marginBottom: 6 }}>
+                    <label
+                      style={{
+                        fontSize: 13,
+                        fontWeight: 600,
+                        color: "#202223",
+                        display: "block",
+                        marginBottom: 6,
+                      }}
+                    >
                       Storefront button position
                     </label>
                     <div className="whatsio-position-selector">
                       <div
-                        className={`whatsio-pos-card ${previewPosition === "right" ? "active" : ""}`}
+                        className={`whatsio-pos-card ${
+                          previewPosition === "right" ? "active" : ""
+                        }`}
                         onClick={() => setPreviewPosition("right")}
                       >
                         <div className="whatsio-pos-indicator">
@@ -340,7 +410,9 @@ export default function HomePage() {
                       </div>
 
                       <div
-                        className={`whatsio-pos-card ${previewPosition === "left" ? "active" : ""}`}
+                        className={`whatsio-pos-card ${
+                          previewPosition === "left" ? "active" : ""
+                        }`}
                         onClick={() => setPreviewPosition("left")}
                       >
                         <div className="whatsio-pos-indicator">
@@ -350,7 +422,11 @@ export default function HomePage() {
                       </div>
                     </div>
                     {/* Hidden input to ensure FormData picks up position */}
-                    <input type="hidden" name="position" value={previewPosition} />
+                    <input
+                      type="hidden"
+                      name="position"
+                      value={previewPosition}
+                    />
                   </div>
 
                   {/* Dynamic wa.me URL Preview */}
@@ -377,7 +453,14 @@ export default function HomePage() {
               <div className="whatsio-card-header">
                 <div>
                   <h2 className="whatsio-card-title">
-                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                    <svg
+                      width="18"
+                      height="18"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth="2"
+                    >
                       <rect x="3" y="3" width="18" height="18" rx="2" ry="2" />
                       <line x1="3" y1="9" x2="21" y2="9" />
                       <line x1="9" y1="21" x2="9" y2="9" />
@@ -385,7 +468,8 @@ export default function HomePage() {
                     How to Activate on Your Storefront
                   </h2>
                   <p className="whatsio-card-subtitle">
-                    Follow these simple steps in Shopify Admin to enable the WhatsApp button on your live theme.
+                    Follow these simple steps in Shopify Admin to enable the
+                    WhatsApp button on your live theme.
                   </p>
                 </div>
               </div>
@@ -396,7 +480,8 @@ export default function HomePage() {
                   <div className="whatsio-step-content">
                     <h3 className="whatsio-step-title">Navigate to Themes</h3>
                     <p className="whatsio-step-desc">
-                      In your Shopify Admin left navigation, click on <kbd>Online Store</kbd> and then select <kbd>Themes</kbd>.
+                      In your Shopify Admin left navigation, click on{" "}
+                      <kbd>Online Store</kbd> and then select <kbd>Themes</kbd>.
                     </p>
                   </div>
                 </div>
@@ -404,9 +489,12 @@ export default function HomePage() {
                 <div className="whatsio-step-item">
                   <div className="whatsio-step-badge">2</div>
                   <div className="whatsio-step-content">
-                    <h3 className="whatsio-step-title">Open the Theme Editor</h3>
+                    <h3 className="whatsio-step-title">
+                      Open the Theme Editor
+                    </h3>
                     <p className="whatsio-step-desc">
-                      Find your active/published theme and click the black <kbd>Customize</kbd> button.
+                      Find your active/published theme and click the black{" "}
+                      <kbd>Customize</kbd> button.
                     </p>
                   </div>
                 </div>
@@ -416,7 +504,9 @@ export default function HomePage() {
                   <div className="whatsio-step-content">
                     <h3 className="whatsio-step-title">Select App Embeds</h3>
                     <p className="whatsio-step-desc">
-                      In the left sidebar of the theme customizer, click the <strong>App embeds</strong> icon (the third icon from the top, shaped like a puzzle block 🧩).
+                      In the left sidebar of the theme customizer, click the{" "}
+                      <strong>App embeds</strong> icon (the third icon from the
+                      top, shaped like a puzzle block 🧩).
                     </p>
                   </div>
                 </div>
@@ -426,7 +516,9 @@ export default function HomePage() {
                   <div className="whatsio-step-content">
                     <h3 className="whatsio-step-title">Enable WhatsApp Chat</h3>
                     <p className="whatsio-step-desc">
-                      Under the <strong>Whatsio</strong> app section, toggle the switch beside <strong>WhatsApp chat</strong> to <strong>ON</strong>.
+                      Under the <strong>Whatsio</strong> app section, toggle the
+                      switch beside <strong>WhatsApp chat</strong> to{" "}
+                      <strong>ON</strong>.
                     </p>
                   </div>
                 </div>
@@ -436,19 +528,30 @@ export default function HomePage() {
                   <div className="whatsio-step-content">
                     <h3 className="whatsio-step-title">Save Theme Changes</h3>
                     <p className="whatsio-step-desc">
-                      Click the green/black <kbd>Save</kbd> button in the top-right corner. The chat button will immediately be live on your store!
+                      Click the green/black <kbd>Save</kbd> button in the
+                      top-right corner. The chat button will immediately be live
+                      on your store!
                     </p>
                   </div>
                 </div>
               </div>
 
               <div className="whatsio-step-tip">
-                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                <svg
+                  width="20"
+                  height="20"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="2"
+                >
                   <path d="M12 22c5.523 0 10-4.477 10-10S17.523 2 12 2 2 6.477 2 12s4.477 10 10 10z" />
                   <path d="m9 12 2 2 4-4" />
                 </svg>
                 <span>
-                  <strong>Zero-Code Guarantee:</strong> App Embeds are isolated and completely safe. They won't alter or break your theme's Liquid code!
+                  <strong>Zero-Code Guarantee:</strong> App Embeds are isolated
+                  and completely safe. They won't alter or break your theme's
+                  Liquid code!
                 </span>
               </div>
 
@@ -466,7 +569,8 @@ export default function HomePage() {
                 </div>
               */}
               <div className="whatsio-commented-code-notice">
-                💡 Direct theme customizer button is paused. Follow the 5 quick steps above to activate.
+                💡 Direct theme customizer button is paused. Follow the 5 quick
+                steps above to activate.
               </div>
             </div>
           </div>
@@ -474,12 +578,32 @@ export default function HomePage() {
           {/* Right Column: Live Interactive Storefront Preview */}
           <div className="whatsio-preview-wrapper">
             <div className="whatsio-card" style={{ padding: "16px 18px" }}>
-              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
+              <div
+                style={{
+                  display: "flex",
+                  justifyContent: "space-between",
+                  alignItems: "center",
+                  marginBottom: 12,
+                }}
+              >
                 <div>
-                  <h3 style={{ margin: 0, fontSize: 14, fontWeight: 700, color: "#202223" }}>
+                  <h3
+                    style={{
+                      margin: 0,
+                      fontSize: 14,
+                      fontWeight: 700,
+                      color: "#202223",
+                    }}
+                  >
                     Live Storefront Preview
                   </h3>
-                  <p style={{ margin: "2px 0 0", fontSize: 11.5, color: "#6d7175" }}>
+                  <p
+                    style={{
+                      margin: "2px 0 0",
+                      fontSize: 11.5,
+                      color: "#6d7175",
+                    }}
+                  >
                     Real-time preview of how customers see your chat widget
                   </p>
                 </div>
@@ -487,14 +611,18 @@ export default function HomePage() {
                 <div className="whatsio-device-toggle">
                   <button
                     type="button"
-                    className={`whatsio-device-btn ${previewDevice === "desktop" ? "active" : ""}`}
+                    className={`whatsio-device-btn ${
+                      previewDevice === "desktop" ? "active" : ""
+                    }`}
                     onClick={() => setPreviewDevice("desktop")}
                   >
                     Desktop
                   </button>
                   <button
                     type="button"
-                    className={`whatsio-device-btn ${previewDevice === "mobile" ? "active" : ""}`}
+                    className={`whatsio-device-btn ${
+                      previewDevice === "mobile" ? "active" : ""
+                    }`}
                     onClick={() => setPreviewDevice("mobile")}
                   >
                     Mobile
@@ -503,7 +631,11 @@ export default function HomePage() {
               </div>
 
               {/* Mock Browser / Phone Frame */}
-              <div className={`whatsio-mockup-frame ${previewDevice === "mobile" ? "mobile-mode" : ""}`}>
+              <div
+                className={`whatsio-mockup-frame ${
+                  previewDevice === "mobile" ? "mobile-mode" : ""
+                }`}
+              >
                 <div className="whatsio-mockup-header">
                   <div className="whatsio-mockup-dots">
                     <span className="whatsio-mockup-dot red"></span>
@@ -532,11 +664,16 @@ export default function HomePage() {
                   {/* Store Hero Banner Mock */}
                   <div className="whatsio-store-hero">
                     <div className="whatsio-store-hero-pill"></div>
-                    <div className="whatsio-store-hero-title">Welcome to Our Store</div>
-                    <div className="whatsio-store-hero-sub">
-                      Discover our new arrivals and connect with us on WhatsApp anytime!
+                    <div className="whatsio-store-hero-title">
+                      Welcome to Our Store
                     </div>
-                    <span className="whatsio-store-hero-cta">Shop Collection</span>
+                    <div className="whatsio-store-hero-sub">
+                      Discover our new arrivals and connect with us on WhatsApp
+                      anytime!
+                    </div>
+                    <span className="whatsio-store-hero-cta">
+                      Shop Collection
+                    </span>
                   </div>
 
                   {/* Mock Product Grid */}
@@ -553,7 +690,9 @@ export default function HomePage() {
 
                   {/* Simulated WhatsApp Speech Bubble */}
                   {showBubble && previewMessage && (
-                    <div className={`whatsio-preview-bubble ${previewPosition}`}>
+                    <div
+                      className={`whatsio-preview-bubble ${previewPosition}`}
+                    >
                       <div className="whatsio-preview-bubble-header">
                         <span>💬</span> Chat with us
                       </div>
@@ -568,7 +707,12 @@ export default function HomePage() {
                     onClick={() => setShowBubble(!showBubble)}
                     title="Click to toggle chat message preview"
                   >
-                    <svg width="26" height="26" viewBox="0 0 32 32" fill="currentColor">
+                    <svg
+                      width="26"
+                      height="26"
+                      viewBox="0 0 32 32"
+                      fill="currentColor"
+                    >
                       <path d="M16.04 3C8.86 3 3.02 8.8 3.02 15.94c0 2.28.6 4.5 1.74 6.45L3 29l6.82-1.78a13.08 13.08 0 0 0 6.21 1.58h.01c7.18 0 13.02-5.8 13.02-12.94C29.06 8.8 23.22 3 16.04 3Zm0 23.62h-.01c-1.91 0-3.79-.51-5.43-1.47l-.39-.23-4.05 1.06 1.08-3.92-.25-.4a10.69 10.69 0 0 1-1.66-5.72c0-5.94 4.81-10.76 10.72-10.76 5.9 0 10.71 4.82 10.71 10.76 0 5.87-4.81 10.68-10.72 10.68Zm5.88-8.03c-.32-.16-1.91-.94-2.21-1.05-.3-.11-.51-.16-.73.16-.21.32-.83 1.05-1.02 1.26-.19.21-.38.24-.7.08-.32-.16-1.36-.5-2.59-1.59a9.67 9.67 0 0 1-1.79-2.22c-.19-.32-.02-.5.14-.66.15-.14.32-.37.49-.56.16-.19.21-.32.32-.53.11-.21.05-.4-.03-.56-.08-.16-.73-1.74-1-2.39-.26-.63-.53-.54-.73-.55h-.62c-.22 0-.57.08-.86.4-.3.32-1.13 1.1-1.13 2.68 0 1.58 1.16 3.11 1.32 3.32.16.21 2.28 3.46 5.52 4.85.77.33 1.37.53 1.84.68.77.24 1.47.21 2.03.13.62-.09 1.91-.77 2.18-1.52.27-.74.27-1.37.19-1.5-.08-.14-.3-.22-.62-.38Z" />
                     </svg>
                   </div>
@@ -577,7 +721,13 @@ export default function HomePage() {
 
               <div style={{ marginTop: 12, textAlign: "center" }}>
                 <span style={{ fontSize: 11.5, color: "#6d7175" }}>
-                  💡 Position: <strong>{previewPosition === "right" ? "Bottom Right" : "Bottom Left"}</strong> • Click button in preview to toggle message
+                  💡 Position:{" "}
+                  <strong>
+                    {previewPosition === "right"
+                      ? "Bottom Right"
+                      : "Bottom Left"}
+                  </strong>{" "}
+                  • Click button in preview to toggle message
                 </span>
               </div>
             </div>

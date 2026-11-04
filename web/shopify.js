@@ -1,9 +1,13 @@
-import { BillingInterval, LATEST_API_VERSION } from "@shopify/shopify-api";
+import { BillingInterval } from "@shopify/shopify-api";
 import { shopifyApp } from "@shopify/shopify-app-express";
 import { SQLiteSessionStorage } from "@shopify/shopify-app-session-storage-sqlite";
 import { restResources } from "@shopify/shopify-api/rest/admin/2024-10";
 
 const DB_PATH = `${process.cwd()}/database.sqlite`;
+const REQUIRED_SCOPES = (process.env.SCOPES || "read_themes")
+  .split(",")
+  .map((scope) => scope.trim())
+  .filter(Boolean);
 
 // The transactions with Shopify will always be marked as test transactions, unless NODE_ENV is production.
 // See the ensureBilling helper to learn more about billing in this template.
@@ -19,6 +23,7 @@ const billingConfig = {
 const shopify = shopifyApp({
   api: {
     apiVersion: "2026-01",
+    scopes: REQUIRED_SCOPES,
     restResources,
     future: {
       customerAddressDefaultFix: true,
