@@ -233,9 +233,10 @@ export default function HomePage() {
     window.open(editorUrl.toString(), "_blank");
   }
 
-  const cleanPhone = (previewPhone || "").replace(/\D/g, "");
+  const phoneInput = (previewPhone || "").trim();
+  const cleanPhone = phoneInput.replace(/\D/g, "");
   const formattedPhone = cleanPhone
-    ? cleanPhone.startsWith(previewCountryCode)
+    ? phoneInput.startsWith("+")
       ? cleanPhone
       : `${previewCountryCode}${cleanPhone.replace(/^0+/, "")}`
     : "";

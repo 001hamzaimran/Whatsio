@@ -4,7 +4,11 @@ import { readFileSync } from "fs";
 import express from "express";
 
 import shopify from "./shopify.js";
-import { normalizeCountryCode, normalizePhone } from "./phone.js";
+import {
+  formatPhoneForInput,
+  normalizeCountryCode,
+  normalizePhone,
+} from "./phone.js";
 import PrivacyWebhookHandlers from "./privacy.js";
 
 const SETTINGS_NAMESPACE = "whatsio";
@@ -180,7 +184,7 @@ app.get("/api/settings", async (req, res) => {
     const installation = response?.data?.currentAppInstallation;
 
     res.status(200).send({
-      phone: installation?.phone?.value || "",
+      phone: formatPhoneForInput(installation?.phone?.value),
       countryCode: installation?.countryCode?.value || "92",
       message: installation?.message?.value || DEFAULT_MESSAGE,
       position: installation?.position?.value || "right",
@@ -274,7 +278,13 @@ app.post("/api/settings", async (req, res) => {
 
     return res
       .status(200)
-      .send({ phone, countryCode, message, position, shop: session.shop });
+      .send({
+        phone: formatPhoneForInput(phone),
+        countryCode,
+        message,
+        position,
+        shop: session.shop,
+      });
   } catch (error) {
     return handleShopifyApiError(error, req, res, "save Whatsio settings");
   }

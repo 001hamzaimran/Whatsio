@@ -18,11 +18,14 @@ export function normalizePhone(value, countryCode) {
   }
 
   const digits = input.replace(/\D/g, "");
-  let internationalNumber = digits;
-
-  if (!input.startsWith("+") && !digits.startsWith(callingCode)) {
-    internationalNumber = `${callingCode}${digits.replace(/^0+/, "")}`;
-  }
+  const internationalNumber = input.startsWith("+")
+    ? digits
+    : `${callingCode}${digits.replace(/^0+/, "")}`;
 
   return /^[1-9]\d{6,14}$/.test(internationalNumber) ? internationalNumber : "";
+}
+
+export function formatPhoneForInput(value) {
+  const digits = String(value || "").replace(/\D/g, "");
+  return /^[1-9]\d{6,14}$/.test(digits) ? `+${digits}` : "";
 }
