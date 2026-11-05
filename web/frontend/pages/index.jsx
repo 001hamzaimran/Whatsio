@@ -2,6 +2,7 @@
 /// <reference types="@shopify/app-bridge-types" />
 
 import { useEffect, useState, useRef } from "react";
+import { formatWhatsAppPhone } from "../phone.js";
 import "./HomePage.css";
 
 const EMPTY_SETTINGS = {
@@ -233,13 +234,10 @@ export default function HomePage() {
     window.open(editorUrl.toString(), "_blank");
   }
 
-  const phoneInput = (previewPhone || "").trim();
-  const cleanPhone = phoneInput.replace(/\D/g, "");
-  const formattedPhone = cleanPhone
-    ? phoneInput.startsWith("+")
-      ? cleanPhone
-      : `${previewCountryCode}${cleanPhone.replace(/^0+/, "")}`
-    : "";
+  const formattedPhone = formatWhatsAppPhone(
+    previewPhone,
+    previewCountryCode
+  );
   const waUrlPreview = formattedPhone
     ? `https://wa.me/${formattedPhone}?text=${encodeURIComponent(
         previewMessage

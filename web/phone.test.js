@@ -17,6 +17,7 @@ test("uses the configured calling code for other countries", () => {
   assert.equal(normalizePhone("5551234567", "+1"), "15551234567");
   assert.equal(normalizePhone("(555) 123-4567", "+1"), "15551234567");
   assert.equal(normalizePhone("+1 555 123-4567", "+1"), "15551234567");
+  assert.equal(normalizePhone("15551234567", "+1"), "15551234567");
   assert.equal(normalizePhone("020 7946 0958", "+44"), "442079460958");
 });
 

@@ -18,9 +18,10 @@ export function normalizePhone(value, countryCode) {
   }
 
   const digits = input.replace(/\D/g, "");
-  const internationalNumber = input.startsWith("+")
-    ? digits
-    : `${callingCode}${digits.replace(/^0+/, "")}`;
+  const internationalNumber =
+    input.startsWith("+") || digits.startsWith(callingCode)
+      ? digits
+      : `${callingCode}${digits.replace(/^0+/, "")}`;
 
   return /^[1-9]\d{6,14}$/.test(internationalNumber) ? internationalNumber : "";
 }
